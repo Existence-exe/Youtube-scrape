@@ -1,7 +1,7 @@
 import csv
 import json
 import os
-from typing import Any
+from typing import Any, Optional
 
 from src.config import OUTPUT_DIR
 from src.models import AnalyticsReport, ChannelMetadata, ShortsStatistics, VideoMetadata
@@ -90,9 +90,13 @@ def save_report(data: dict[str, Any], filename: str = "report") -> tuple[str, st
 
 def generate_report(
     video: VideoMetadata,
-    channel: ChannelMetadata,
+    channel: Optional[ChannelMetadata],
     shorts: ShortsStatistics,
 ) -> AnalyticsReport:
+    # Accept a missing channel and substitute an empty ChannelMetadata for reporting
+    if channel is None:
+        channel = ChannelMetadata()
+
     report = AnalyticsReport(video=video, channel=channel, shorts=shorts)
     os.makedirs(OUTPUT_DIR, exist_ok=True)
 
