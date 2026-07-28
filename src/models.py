@@ -53,6 +53,7 @@ class SearchResult:
     view_count: int = 0
     duration: str = ""
     thumbnail_url: str = ""
+    is_short: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

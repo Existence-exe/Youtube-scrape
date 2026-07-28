@@ -5,6 +5,7 @@ from typing import Any
 
 from src.config import OUTPUT_DIR
 from src.models import AnalyticsReport, ChannelMetadata, ShortsStatistics, VideoMetadata
+from src import storage  # new import (ensure src is a package or adjust import as needed)
 
 
 _REPORT_CSV_COLUMNS = [
@@ -96,11 +97,11 @@ def generate_report(
     os.makedirs(OUTPUT_DIR, exist_ok=True)
 
     json_path = os.path.join(OUTPUT_DIR, "report.json")
-    with open(json_path, "w") as f:
-        json.dump(report.to_dict(), f, indent=2)
+    with open(json_path, "w", encoding="utf-8") as f:
+        json.dump(report.to_dict(), f, indent=2, ensure_ascii=False)
 
     csv_path = os.path.join(OUTPUT_DIR, "report.csv")
-    with open(csv_path, "w", newline="") as f:
+    with open(csv_path, "w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
         writer.writerow(_REPORT_CSV_COLUMNS)
         writer.writerow([
@@ -114,5 +115,12 @@ def generate_report(
             shorts.first_upload_year,
             video.video_url,
         ])
+
+    # persist to repo database history file
+    try:
+        db_path = storage.append_analysis(report.to_dict())
+    except Exception:
+        # do not fail the analysis if history append fails, but log it for debugging
+        db_path = None
 
     return report
