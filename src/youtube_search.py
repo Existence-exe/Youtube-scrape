@@ -18,8 +18,9 @@ def search_videos(query: str, include_shorts: bool = True, max_results: int = 10
         # request some short results from the actor when requested
         "maxResultsShorts": max_results if include_shorts else 0,
         "maxResultStreams": 0,
-        # ask for any type so actor can include shorts when maxResultsShorts > 0
-        "videoType": "any",
+        # actor only accepts 'video' or 'movie' for videoType; keep 'video' and rely on
+        # maxResultsShorts to include shorts when requested
+        "videoType": "video",
     }
     try:
         items = run_actor(_ACTOR_ID, run_input)
