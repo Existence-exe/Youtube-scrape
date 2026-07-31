@@ -1,11 +1,14 @@
 import logging
 import time
+import re
+import os
 
 from src.client import ActorError, test_connection
 from src.report import generate_report
 from src.shorts import get_channel_shorts
 from src.statistics import build_shorts_statistics
 from src.video import get_video_metadata, get_first_upload_year
+from src.models import ChannelMetadata
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +28,7 @@ def _display_shorts_table(shorts_list: list) -> None:
         print("No shorts found.")
         return
     print()
-    print(f"{'#':<3s} {'Title':50s} {'Views':>12s} {'Date':12s}")
+    print(f"{ '#':<3s} {'Title':50s} {'Views':>12s} {'Date':12s}")
     print("-" * 80)
     for i, s in enumerate(shorts_list, 1):
         title = s.title[:47] if len(s.title) > 47 else s.title
@@ -48,6 +51,14 @@ def _display_short_report(video, shorts_stats) -> None:
     print(f"  {'Total Shorts':30s} {shorts_stats.total_shorts}")
     print(f"  {'Average Views':30s} {shorts_stats.average_views:,.1f}")
     print(f"  {'First Upload Year':30s} {shorts_stats.first_upload_year or 'N/A'}")
+
+
+def _safe_filename(s: str, max_len: int = 50) -> str:
+    # Replace anything not alnum, hyphen or underscore with underscore, and truncate.
+    if not s:
+        return "report"
+    s = re.sub(r"[^A-Za-z0-9_-]", "_", s)
+    return s[:max_len]
 
 
 def _analyze_short(video_url: str) -> None:
@@ -87,10 +98,26 @@ def _analyze_short(video_url: str) -> None:
 
     _display_short_report(video, shorts_stats)
 
-    report = generate_report(video, None, shorts_stats)
-    logger.info("Report generated in %.2fs", time.time() - start)
+    # Build a ChannelMetadata from video info so reports include channel fields when actor data
+    # isn't available.
+    channel = ChannelMetadata(
+        channel_name=video.channel_name,
+        channel_url=video.channel_url,
+        subscriber_count=0,
+        channel_id="",
+        country="",
+        description="",
+        total_videos=0,
+    )
+
+    # construct a safe filename for this report
+    basefn = video.video_id or video.title or "report"
+    filename = f"report_{_safe_filename(basefn)}"
+
+    report = generate_report(video, channel, shorts_stats, filename=filename)
+    logger.info("Report generated in %.2fs (saved as %s)", time.time() - start, filename)
     print()
-    print(f"  Reports saved to output/report.json and output/report.csv")
+    print(f"  Reports saved to {os.path.join('output', filename + '.json')} and {os.path.join('output', filename + '.csv')}")
 
 
 def _list_channel_shorts(channel_url: str) -> None:
@@ -131,16 +158,18 @@ def main() -> None:
         choice = input("  Choose an option: ").strip()
 
         if choice == "1":
-            url = input("  Enter a short video URL: ").strip()
-            if not url:
-                print("  No URL provided.")
+            urls_input = input("  Enter one or more short video URLs (space-separated): ").strip()
+            if not urls_input:
+                print("  No URL(s) provided.")
                 continue
-            try:
-                _analyze_short(url)
-            except (ActorError, ValueError) as e:
-                logger.error("Analysis failed: %s", e)
-                print(f"  Analysis error: {e}")
-                continue
+            urls = urls_input.split()
+            for url in urls:
+                try:
+                    _analyze_short(url)
+                except (ActorError, ValueError) as e:
+                    logger.error("Analysis failed for %s: %s", url, e)
+                    print(f"  Analysis error for {url}: {e}")
+                    continue
 
         elif choice == "2":
             channel = input("  Enter a channel URL: ").strip()
